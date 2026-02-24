@@ -54,3 +54,60 @@ exports.deleteApp = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+exports.updateApp = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, version, size, developer } = req.body;
+
+    const icon = req.files?.icon?.[0];
+    const screenshots = req.files?.screenshots || [];
+
+    // Check if app exists
+    const existing = await db.query("SELECT * FROM apps WHERE id = $1", [id]);
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: "App not found" });
+    }
+
+    let iconUrl = existing.rows[0].icon_url;
+
+    // If new icon uploaded
+    if (icon) {
+      iconUrl = `/uploads/icons/${icon.filename}`;
+    }
+
+    // Update main app fields
+    const updated = await db.query(
+      `UPDATE apps
+       SET name = COALESCE($1, name),
+           description = COALESCE($2, description),
+           icon_url = $3,
+           version = COALESCE($4, version),
+           size = COALESCE($5, size),
+           developer = COALESCE($6, developer)
+       WHERE id = $7
+       RETURNING *`,
+      [name, description, iconUrl, version, size, developer, id],
+    );
+
+    // If new screenshots uploaded → delete old and insert new
+    if (screenshots.length > 0) {
+      await db.query("DELETE FROM app_images WHERE app_id = $1", [id]);
+
+      for (let i = 0; i < screenshots.length; i++) {
+        const img = screenshots[i];
+        const imageUrl = `/uploads/screenshots/${img.filename}`;
+
+        await db.query(
+          "INSERT INTO app_images (app_id, image_url, display_order) VALUES ($1, $2, $3)",
+          [id, imageUrl, i],
+        );
+      }
+    }
+
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error("UPDATE APP ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+};

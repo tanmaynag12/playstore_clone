@@ -1,8 +1,8 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { getAllApps, getAppById } = require('../controllers/appController');
+const { getAllApps, getAppById } = require("../controllers/appController");
 
-router.get('/apps', getAllApps);
-router.get('/apps/:id', getAppById);
+router.get("/", getAllApps);
+router.get("/:id", getAppById);
 
 module.exports = router;
