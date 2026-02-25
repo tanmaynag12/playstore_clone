@@ -14,35 +14,52 @@ async function register(req, res) {
   const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
-    return res
-      .status(400)
-      .json({ error: "name, email and password are required." });
+    return res.status(400).json({
+      error: "Name, email and password are required.",
+    });
   }
 
   try {
     const existing = await pool.query("SELECT id FROM users WHERE email = $1", [
       email,
     ]);
+
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: "Email already registered." });
+      return res.status(409).json({
+        error: "Email already registered.",
+      });
     }
 
     const hashed = await bcrypt.hash(password, SALT_ROUNDS);
 
     const { rows } = await pool.query(
-      `INSERT INTO users (name, email, password)
-       VALUES ($1, $2, $3)
-       RETURNING id, name, email, role, created_at`,
+      `
+      INSERT INTO users (name, email, password)
+      VALUES ($1, $2, $3)
+      RETURNING id, name, email, role, created_at
+      `,
       [name, email, hashed],
     );
 
     const user = rows[0];
+
     const token = signToken(user);
 
-    return res.status(201).json({ user, token });
+    return res.status(201).json({
+      user,
+      token,
+    });
   } catch (err) {
     console.error("Register error:", err);
-    return res.status(500).json({ error: "Internal server error." });
+    if (err.code === "23505") {
+      return res.status(409).json({
+        error: "Email already registered.",
+      });
+    }
+
+    return res.status(500).json({
+      error: "Internal server error.",
+    });
   }
 }
 // LOGIN FUNCTION
@@ -76,6 +93,8 @@ async function login(req, res) {
     console.error("Login error:", err);
     return res.status(500).json({ error: "Internal server error." });
   }
+
+  
 }
 
 module.exports = { register, login };
