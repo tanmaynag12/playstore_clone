@@ -1,5 +1,29 @@
 const pool = require("../config/db");
 
+// ------------------------------------------------------------
+// Shared helper — single source of truth for rating stats.
+// Accepts an active client so it runs within the same connection
+// as the write that preceded it, avoiding a second pool.connect().
+// ------------------------------------------------------------
+const getRatingStats = async (client, appId) => {
+  const statsQuery = `
+    SELECT
+      ROUND(AVG(rating)::NUMERIC, 2) AS average_rating,
+      COUNT(*)::INTEGER               AS total_reviews
+    FROM ratings
+    WHERE app_id = $1
+  `;
+  const { rows } = await client.query(statsQuery, [appId]);
+  return {
+    average_rating: rows[0].average_rating
+      ? parseFloat(rows[0].average_rating)
+      : null,
+    total_reviews: rows[0].total_reviews,
+  };
+};
+
+// ------------------------------------------------------------
+
 const upsertRating = async (req, res) => {
   const appId = parseInt(req.params.id, 10);
   const userId = req.user.id;
@@ -54,12 +78,18 @@ const upsertRating = async (req, res) => {
 
     const wasUpdate = result.rows[0].created_at < result.rows[0].updated_at;
 
+    // Fetch updated stats on the same client, after the write.
+    const stats = await getRatingStats(client, appId);
+
     return res.status(wasUpdate ? 200 : 201).json({
       success: true,
       message: wasUpdate
         ? "Rating updated successfully."
         : "Rating submitted successfully.",
-      data: result.rows[0],
+      data: {
+        ...result.rows[0],
+        ...stats,
+      },
     });
   } catch (err) {
     console.error("[upsertRating] Error:", err);
@@ -70,6 +100,8 @@ const upsertRating = async (req, res) => {
     client.release();
   }
 };
+
+// ------------------------------------------------------------
 
 const getAppRatings = async (req, res) => {
   const appId = parseInt(req.params.id, 10);
@@ -90,15 +122,8 @@ const getAppRatings = async (req, res) => {
         .json({ success: false, message: "App not found." });
     }
 
-    const statsQuery = `
-      SELECT
-        ROUND(AVG(rating)::NUMERIC, 2) AS average_rating,
-        COUNT(*)::INTEGER               AS total_reviews
-      FROM ratings
-      WHERE app_id = $1
-    `;
-    const statsResult = await client.query(statsQuery, [appId]);
-    const { average_rating, total_reviews } = statsResult.rows[0];
+    // Reuses the shared helper — no duplication.
+    const stats = await getRatingStats(client, appId);
 
     const reviewsQuery = `
       SELECT
@@ -121,8 +146,7 @@ const getAppRatings = async (req, res) => {
       data: {
         app_id: appId,
         app_name: appCheck.rows[0].name,
-        average_rating: average_rating ? parseFloat(average_rating) : null,
-        total_reviews,
+        ...stats,
         reviews: reviewsResult.rows,
       },
     });
@@ -135,6 +159,8 @@ const getAppRatings = async (req, res) => {
     client.release();
   }
 };
+
+// ------------------------------------------------------------
 
 const deleteRating = async (req, res) => {
   const appId = parseInt(req.params.id, 10);
@@ -160,9 +186,13 @@ const deleteRating = async (req, res) => {
       });
     }
 
+    // Fetch updated stats on the same client, after the delete.
+    const stats = await getRatingStats(client, appId);
+
     return res.status(200).json({
       success: true,
       message: "Rating deleted successfully.",
+      data: stats,
     });
   } catch (err) {
     console.error("[deleteRating] Error:", err);

@@ -5,12 +5,17 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (file.fieldname === "icon") {
       cb(null, "uploads/icons");
-    } else {
+    } else if (file.fieldname === "screenshots") {
       cb(null, "uploads/screenshots");
+    } else if (file.fieldname === "apk") {
+      cb(null, "uploads/apks");
+    } else {
+      cb(new Error("Invalid field name"), null);
     }
   },
+
   filename: (req, file, cb) => {
-    const uniqueName = Date.now() + path.extname(file.originalname);
+    const uniqueName = Date.now() + "-" + file.originalname;
     cb(null, uniqueName);
   },
 });
@@ -19,15 +24,22 @@ const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowedExt = [".png", ".jpg", ".jpeg", ".webp"];
 
-    console.log("Uploaded file:", file.originalname, file.mimetype);
+    const imageExt = [".png", ".jpg", ".jpeg", ".webp"];
+    const apkExt = [".apk"];
 
-    if (!allowedExt.includes(ext)) {
-      return cb(new Error("Only image files are allowed"), false);
+    if (
+      (file.fieldname === "icon" || file.fieldname === "screenshots") &&
+      imageExt.includes(ext)
+    ) {
+      return cb(null, true);
     }
 
-    cb(null, true);
+    if (file.fieldname === "apk" && apkExt.includes(ext)) {
+      return cb(null, true);
+    }
+
+    cb(new Error("Invalid file type"), false);
   },
 });
 

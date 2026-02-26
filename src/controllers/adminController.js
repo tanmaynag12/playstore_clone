@@ -2,19 +2,25 @@ const db = require("../config/db");
 
 exports.createApp = async (req, res) => {
   try {
-    const { name, description, version, size, developer } = req.body;
+    const { name, description, version, size, developer, rated_for } = req.body;
     const icon = req.files?.icon?.[0];
     const screenshots = req.files?.screenshots || [];
+    const apk = req.files?.apk?.[0];
 
     if (!name || !icon) {
       return res.status(400).json({ error: "Name and icon are required" });
     }
 
     const iconUrl = `/uploads/icons/${icon.filename}`;
+    let apkUrl = null;
+
+    if (apk) {
+      apkUrl = `/uploads/apks/${apk.filename}`;
+    }
 
     const appResult = await db.query(
-      "INSERT INTO apps (name, description, icon_url, version, size, developer) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-      [name, description, iconUrl, version, size, developer],
+      "INSERT INTO apps (name, description, icon_url, version, size, developer, rated_for, apk_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+      [name, description, iconUrl, version, size, developer, rated_for, apkUrl],
     );
 
     const appId = appResult.rows[0].id;
@@ -57,12 +63,12 @@ exports.deleteApp = async (req, res) => {
 exports.updateApp = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, version, size, developer } = req.body;
+    const { name, description, version, size, developer, rated_for } = req.body;
 
     const icon = req.files?.icon?.[0];
     const screenshots = req.files?.screenshots || [];
+    const apk = req.files?.apk?.[0];
 
-    // Check if app exists
     const existing = await db.query("SELECT * FROM apps WHERE id = $1", [id]);
 
     if (existing.rows.length === 0) {
@@ -71,26 +77,39 @@ exports.updateApp = async (req, res) => {
 
     let iconUrl = existing.rows[0].icon_url;
 
-    // If new icon uploaded
     if (icon) {
       iconUrl = `/uploads/icons/${icon.filename}`;
     }
+    let apkUrl = existing.rows[0].apk_url;
 
-    // Update main app fields
+    if (apk) {
+      apkUrl = `/uploads/apks/${apk.filename}`;
+    }
     const updated = await db.query(
       `UPDATE apps
        SET name = COALESCE($1, name),
-           description = COALESCE($2, description),
-           icon_url = $3,
-           version = COALESCE($4, version),
-           size = COALESCE($5, size),
-           developer = COALESCE($6, developer)
-       WHERE id = $7
-       RETURNING *`,
-      [name, description, iconUrl, version, size, developer, id],
+        description = COALESCE($2, description),
+        icon_url = $3,
+        version = COALESCE($4, version),
+        size = COALESCE($5, size),
+        developer = COALESCE($6, developer),
+        rated_for = COALESCE($7, rated_for),
+        apk_url = $8
+      WHERE id = $9
+      RETURNING *`,
+      [
+        name,
+        description,
+        iconUrl,
+        version,
+        size,
+        developer,
+        rated_for,
+        apkUrl,
+        id,
+      ],
     );
 
-    // If new screenshots uploaded → delete old and insert new
     if (screenshots.length > 0) {
       await db.query("DELETE FROM app_images WHERE app_id = $1", [id]);
 

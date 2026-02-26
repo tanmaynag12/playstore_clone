@@ -1,6 +1,5 @@
 const jwt = require("jsonwebtoken");
 
-// AUTHETICATE TOKENS
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -18,7 +17,6 @@ function authenticate(req, res, next) {
   }
 }
 
-// RESTICT ROLES
 function authorize(...roles) {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {

@@ -15,6 +15,7 @@ router.post(
   upload.fields([
     { name: "icon", maxCount: 1 },
     { name: "screenshots", maxCount: 5 },
+    { name: "apk", maxCount: 1 },
   ]),
   createApp,
 );
@@ -25,6 +26,7 @@ router.put(
   upload.fields([
     { name: "icon", maxCount: 1 },
     { name: "screenshots", maxCount: 5 },
+    { name: "apk", maxCount: 1 },
   ]),
   updateApp,
 );
