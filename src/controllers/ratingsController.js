@@ -1,10 +1,5 @@
 const pool = require("../config/db");
 
-// ------------------------------------------------------------
-// Shared helper — single source of truth for rating stats.
-// Accepts an active client so it runs within the same connection
-// as the write that preceded it, avoiding a second pool.connect().
-// ------------------------------------------------------------
 const getRatingStats = async (client, appId) => {
   const statsQuery = `
     SELECT
@@ -21,8 +16,6 @@ const getRatingStats = async (client, appId) => {
     total_reviews: rows[0].total_reviews,
   };
 };
-
-// ------------------------------------------------------------
 
 const upsertRating = async (req, res) => {
   const appId = parseInt(req.params.id, 10);
@@ -78,7 +71,6 @@ const upsertRating = async (req, res) => {
 
     const wasUpdate = result.rows[0].created_at < result.rows[0].updated_at;
 
-    // Fetch updated stats on the same client, after the write.
     const stats = await getRatingStats(client, appId);
 
     return res.status(wasUpdate ? 200 : 201).json({
@@ -101,8 +93,6 @@ const upsertRating = async (req, res) => {
   }
 };
 
-// ------------------------------------------------------------
-
 const getAppRatings = async (req, res) => {
   const appId = parseInt(req.params.id, 10);
 
@@ -122,7 +112,6 @@ const getAppRatings = async (req, res) => {
         .json({ success: false, message: "App not found." });
     }
 
-    // Reuses the shared helper — no duplication.
     const stats = await getRatingStats(client, appId);
 
     const reviewsQuery = `
@@ -130,6 +119,7 @@ const getAppRatings = async (req, res) => {
         r.id,
         u.id         AS user_id,
         u.name       AS user_name,
+        u.profile_image AS user_profile_image,
         r.rating,
         r.review_text,
         r.created_at,
@@ -160,8 +150,6 @@ const getAppRatings = async (req, res) => {
   }
 };
 
-// ------------------------------------------------------------
-
 const deleteRating = async (req, res) => {
   const appId = parseInt(req.params.id, 10);
   const userId = req.user.id;
@@ -186,7 +174,6 @@ const deleteRating = async (req, res) => {
       });
     }
 
-    // Fetch updated stats on the same client, after the delete.
     const stats = await getRatingStats(client, appId);
 
     return res.status(200).json({

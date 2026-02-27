@@ -9,6 +9,8 @@ const storage = multer.diskStorage({
       cb(null, "uploads/screenshots");
     } else if (file.fieldname === "apk") {
       cb(null, "uploads/apks");
+    } else if (file.fieldname === "profile_image") {
+      cb(null, "uploads/profiles");
     } else {
       cb(new Error("Invalid field name"), null);
     }
@@ -29,7 +31,9 @@ const upload = multer({
     const apkExt = [".apk"];
 
     if (
-      (file.fieldname === "icon" || file.fieldname === "screenshots") &&
+      (file.fieldname === "icon" ||
+        file.fieldname === "screenshots" ||
+        file.fieldname === "profile_image") &&
       imageExt.includes(ext)
     ) {
       return cb(null, true);

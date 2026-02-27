@@ -1,6 +1,8 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
+const fs = require("fs");
+const path = require("path");
 
 const SALT_ROUNDS = 10;
 
@@ -93,8 +95,49 @@ async function login(req, res) {
     console.error("Login error:", err);
     return res.status(500).json({ error: "Internal server error." });
   }
+}
+async function updateProfileImage(req, res) {
+  const userId = req.user.id;
 
-  
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded." });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    const { rows } = await client.query(
+      "SELECT profile_image FROM users WHERE id = $1",
+      [userId],
+    );
+
+    const oldImage = rows[0]?.profile_image;
+
+    if (oldImage) {
+      const oldPath = path.join(__dirname, "../../", oldImage);
+
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+
+    const newPath = `/uploads/profiles/${req.file.filename}`;
+
+    await client.query("UPDATE users SET profile_image = $1 WHERE id = $2", [
+      newPath,
+      userId,
+    ]);
+
+    return res.status(200).json({
+      message: "Profile image updated successfully.",
+      profile_image: newPath,
+    });
+  } catch (err) {
+    console.error("Profile image update error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  } finally {
+    client.release();
+  }
 }
 
-module.exports = { register, login };
+module.exports = { register, login, updateProfileImage };
