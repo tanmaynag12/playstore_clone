@@ -5,6 +5,3 @@ uploads
 uploads/apks/
 *.apk
 
-# Node stuff 
-node_modules/
-.env
