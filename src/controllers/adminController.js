@@ -2,13 +2,25 @@ const db = require("../config/db");
 
 exports.createApp = async (req, res) => {
   try {
-    const { name, description, version, size, developer, rated_for } = req.body;
+    const {
+      name,
+      description,
+      version,
+      size,
+      developer,
+      rated_for,
+      package_name,
+      version_code,
+    } = req.body;
+
     const icon = req.files?.icon?.[0];
     const screenshots = req.files?.screenshots || [];
     const apk = req.files?.apk?.[0];
 
-    if (!name || !icon) {
-      return res.status(400).json({ error: "Name and icon are required" });
+    if (!name || !icon || !package_name || !version_code) {
+      return res.status(400).json({
+        error: "Name, icon, package_name and version_code are required",
+      });
     }
 
     const iconUrl = `/uploads/icons/${icon.filename}`;
@@ -19,8 +31,22 @@ exports.createApp = async (req, res) => {
     }
 
     const appResult = await db.query(
-      "INSERT INTO apps (name, description, icon_url, version, size, developer, rated_for, apk_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
-      [name, description, iconUrl, version, size, developer, rated_for, apkUrl],
+      `INSERT INTO apps 
+       (name, description, icon_url, version, size, developer, rated_for, apk_url, package_name, version_code) 
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) 
+       RETURNING *`,
+      [
+        name,
+        description,
+        iconUrl,
+        version,
+        size,
+        developer,
+        rated_for,
+        apkUrl,
+        package_name,
+        version_code,
+      ],
     );
 
     const appId = appResult.rows[0].id;
@@ -28,8 +54,9 @@ exports.createApp = async (req, res) => {
     for (let i = 0; i < screenshots.length; i++) {
       const img = screenshots[i];
       const imageUrl = `/uploads/screenshots/${img.filename}`;
+
       await db.query(
-        "INSERT INTO app_images (app_id, image_url, display_order) VALUES ($1, $2, $3)",
+        "INSERT INTO app_images (app_id, image_url, display_order) VALUES ($1,$2,$3)",
         [appId, imageUrl, i],
       );
     }
@@ -60,10 +87,21 @@ exports.deleteApp = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 exports.updateApp = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, version, size, developer, rated_for } = req.body;
+
+    const {
+      name,
+      description,
+      version,
+      size,
+      developer,
+      rated_for,
+      package_name,
+      version_code,
+    } = req.body;
 
     const icon = req.files?.icon?.[0];
     const screenshots = req.files?.screenshots || [];
@@ -76,27 +114,29 @@ exports.updateApp = async (req, res) => {
     }
 
     let iconUrl = existing.rows[0].icon_url;
-
     if (icon) {
       iconUrl = `/uploads/icons/${icon.filename}`;
     }
-    let apkUrl = existing.rows[0].apk_url;
 
+    let apkUrl = existing.rows[0].apk_url;
     if (apk) {
       apkUrl = `/uploads/apks/${apk.filename}`;
     }
+
     const updated = await db.query(
       `UPDATE apps
        SET name = COALESCE($1, name),
-        description = COALESCE($2, description),
-        icon_url = $3,
-        version = COALESCE($4, version),
-        size = COALESCE($5, size),
-        developer = COALESCE($6, developer),
-        rated_for = COALESCE($7, rated_for),
-        apk_url = $8
-      WHERE id = $9
-      RETURNING *`,
+           description = COALESCE($2, description),
+           icon_url = $3,
+           version = COALESCE($4, version),
+           size = COALESCE($5, size),
+           developer = COALESCE($6, developer),
+           rated_for = COALESCE($7, rated_for),
+           apk_url = $8,
+           package_name = COALESCE($9, package_name),
+           version_code = COALESCE($10, version_code)
+       WHERE id = $11
+       RETURNING *`,
       [
         name,
         description,
@@ -106,20 +146,28 @@ exports.updateApp = async (req, res) => {
         developer,
         rated_for,
         apkUrl,
+        package_name,
+        version_code,
         id,
       ],
     );
 
+    // ✅ FIXED: Append screenshots instead of deleting old ones
     if (screenshots.length > 0) {
-      await db.query("DELETE FROM app_images WHERE app_id = $1", [id]);
+      const existingImages = await db.query(
+        "SELECT COUNT(*) FROM app_images WHERE app_id = $1",
+        [id],
+      );
+
+      const currentCount = parseInt(existingImages.rows[0].count);
 
       for (let i = 0; i < screenshots.length; i++) {
         const img = screenshots[i];
         const imageUrl = `/uploads/screenshots/${img.filename}`;
 
         await db.query(
-          "INSERT INTO app_images (app_id, image_url, display_order) VALUES ($1, $2, $3)",
-          [id, imageUrl, i],
+          "INSERT INTO app_images (app_id, image_url, display_order) VALUES ($1,$2,$3)",
+          [id, imageUrl, currentCount + i],
         );
       }
     }

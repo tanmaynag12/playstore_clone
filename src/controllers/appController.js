@@ -2,16 +2,33 @@ const db = require("../config/db");
 
 exports.getAllApps = async (req, res) => {
   try {
-    const result = await db.query(`
+    const { search } = req.query;
+
+    let query = `
       SELECT 
         a.*,
         ROUND(AVG(r.rating)::NUMERIC, 2) AS average_rating,
         COUNT(r.id)::INTEGER             AS total_reviews
       FROM apps a
       LEFT JOIN ratings r ON r.app_id = a.id
+    `;
+
+    let values = [];
+
+    if (search) {
+      query += `
+        WHERE a.name ILIKE $1
+        OR a.developer ILIKE $1
+      `;
+      values.push(`%${search}%`);
+    }
+
+    query += `
       GROUP BY a.id
       ORDER BY a.id DESC
-    `);
+    `;
+
+    const result = await db.query(query, values);
 
     const apps = result.rows.map((app) => ({
       ...app,
