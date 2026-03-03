@@ -2,7 +2,8 @@ node_modules/
 .env
 
 # uploads
-uploads/
+uploads/*
+!uploads/.gitkeep
 
 # APK files
 *.apk
