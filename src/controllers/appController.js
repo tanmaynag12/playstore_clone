@@ -71,6 +71,15 @@ exports.getAppById = async (req, res) => {
       "SELECT image_url FROM app_images WHERE app_id = $1",
       [id],
     );
+    const ratingDist = await db.query(
+      `
+      SELECT rating, COUNT(*)::INTEGER as count
+      FROM ratings
+      WHERE app_id = $1
+      GROUP BY rating
+      `,
+      [id],
+    );
 
     res.json({
       ...appResult.rows[0],
@@ -79,6 +88,7 @@ exports.getAppById = async (req, res) => {
         : null,
       total_reviews: appResult.rows[0].total_reviews || 0,
       screenshots: imagesResult.rows.map((r) => r.image_url),
+      rating_distribution: ratingDist.rows,
     });
   } catch (err) {
     console.error("GET APP ERROR:", err);
