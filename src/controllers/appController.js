@@ -115,10 +115,23 @@ exports.downloadApp = async (req, res) => {
       return res.status(404).json({ error: "APK not available" });
     }
 
+    // increase download count
     await db.query(
       "UPDATE apps SET download_count = download_count + 1 WHERE id = $1",
       [id],
     );
+
+    // save installed app if user logged in
+    if (req.user) {
+      await db.query(
+        `
+        INSERT INTO user_apps (user_id, app_id)
+        VALUES ($1,$2)
+        ON CONFLICT (user_id, app_id) DO NOTHING
+        `,
+        [req.user.id, id],
+      );
+    }
 
     const filePath = path.join(__dirname, "../../", apkUrl);
 
@@ -128,3 +141,25 @@ exports.downloadApp = async (req, res) => {
     res.status(500).json({ error: "Download failed" });
   }
 };
+async function getMyApps(req, res) {
+  const userId = req.user.id;
+
+  try {
+    const { rows } = await db.query(
+      `
+      SELECT apps.*
+      FROM user_apps
+      JOIN apps ON apps.id = user_apps.app_id
+      WHERE user_apps.user_id = $1
+      ORDER BY installed_at DESC
+      `,
+      [userId],
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error("GET MY APPS ERROR:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+}
+exports.getMyApps = getMyApps;

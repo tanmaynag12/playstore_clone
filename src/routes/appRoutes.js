@@ -5,7 +5,10 @@ const {
   downloadApp,
   getAllApps,
   getAppById,
+  getMyApps,
 } = require("../controllers/appController");
+
+const { authenticate, optionalAuth } = require("../middleware/authMiddleware");
 
 const rateLimit = require("express-rate-limit");
 
@@ -18,8 +21,13 @@ const downloadLimiter = rateLimit({
 const ratingsRoutes = require("./ratingsRoutes");
 
 router.get("/", getAllApps);
-router.get("/:id/download", downloadLimiter, downloadApp);
+
+router.get("/my-apps", authenticate, getMyApps);
+
+router.get("/:id/download", downloadLimiter, optionalAuth, downloadApp);
+
 router.get("/:id", getAppById);
+
 router.use("/:id", ratingsRoutes);
 
 module.exports = router;

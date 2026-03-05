@@ -27,5 +27,42 @@ function authorize(...roles) {
     next();
   };
 }
+exports.optionalAuth = (req, res, next) => {
+  const header = req.headers.authorization;
 
-module.exports = { authenticate, authorize };
+  if (!header) {
+    return next();
+  }
+
+  const token = header.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+  } catch (err) {
+    req.user = null;
+  }
+
+  next();
+};
+
+const optionalAuth = (req, res, next) => {
+  const header = req.headers.authorization;
+
+  if (!header) {
+    return next();
+  }
+
+  const token = header.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+  } catch (err) {
+    req.user = null;
+  }
+
+  next();
+};
+
+module.exports = { authenticate, authorize, optionalAuth };
