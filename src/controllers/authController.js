@@ -13,11 +13,12 @@ function signToken(user) {
 }
 // REGISTER FUNCTION
 async function register(req, res) {
-  const { name, email, password } = req.body;
+  const { first_name, last_name, email, password, dob, gender, hex_id } =
+    req.body;
 
-  if (!name || !email || !password) {
+  if (!first_name || !last_name || !email || !password) {
     return res.status(400).json({
-      error: "Name, email and password are required.",
+      error: "First name, last name, email and password are required.",
     });
   }
 
@@ -36,11 +37,11 @@ async function register(req, res) {
 
     const { rows } = await pool.query(
       `
-      INSERT INTO users (name, email, password)
-      VALUES ($1, $2, $3)
-      RETURNING id, name, email, role, created_at
+      INSERT INTO users (first_name, last_name, email, password, dob, gender, hex_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, first_name, last_name, email, role, created_at
       `,
-      [name, email, hashed],
+      [first_name, last_name, email, hashed, dob, gender, hex_id],
     );
 
     const user = rows[0];
@@ -139,5 +140,22 @@ async function updateProfileImage(req, res) {
     client.release();
   }
 }
+//delete account function
+async function deleteAccount(req, res) {
+  const userId = req.user.id;
 
-module.exports = { register, login, updateProfileImage };
+  try {
+    await pool.query("DELETE FROM users WHERE id = $1", [userId]);
+
+    return res.status(200).json({
+      message: "Account deleted successfully",
+    });
+  } catch (err) {
+    console.error("Delete account error:", err);
+    return res.status(500).json({
+      error: "Internal server error",
+    });
+  }
+}
+
+module.exports = { register, login, updateProfileImage, deleteAccount };
