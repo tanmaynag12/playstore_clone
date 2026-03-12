@@ -51,6 +51,12 @@ exports.createApp = async (req, res) => {
 
     const appId = appResult.rows[0].id;
 
+    await db.query(
+      `INSERT INTO app_logs (app_id, user_id, action, version)
+       VALUES ($1,$2,$3,$4)`,
+      [appId, req.user?.id || null, "uploaded", version],
+    );
+
     for (let i = 0; i < screenshots.length; i++) {
       const img = screenshots[i];
       const imageUrl = `/uploads/screenshots/${img.filename}`;
@@ -158,6 +164,14 @@ exports.updateApp = async (req, res) => {
       ],
     );
 
+    const updatedApp = updated.rows[0];
+
+    await db.query(
+      `INSERT INTO app_logs (app_id, user_id, action, version)
+       VALUES ($1,$2,$3,$4)`,
+      [id, req.user?.id || null, "updated", updatedApp.version],
+    );
+
     if (screenshots.length > 0) {
       const existingImages = await db.query(
         "SELECT COUNT(*) FROM app_images WHERE app_id = $1",
@@ -177,9 +191,29 @@ exports.updateApp = async (req, res) => {
       }
     }
 
-    res.json(updated.rows[0]);
+    res.json(updatedApp);
   } catch (err) {
     console.error("UPDATE APP ERROR:", err);
     res.status(500).json({ error: err.message });
+  }
+};
+exports.getAppLogs = async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        app_logs.id,
+        app_logs.action,
+        app_logs.version,
+        app_logs.created_at,
+        apps.name AS app_name
+      FROM app_logs
+      JOIN apps ON apps.id = app_logs.app_id
+      ORDER BY app_logs.created_at DESC
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET LOGS ERROR:", err);
+    res.status(500).json({ error: "Server error" });
   }
 };

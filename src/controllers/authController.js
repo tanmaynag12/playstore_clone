@@ -51,6 +51,7 @@ async function register(req, res) {
     return res.status(201).json({
       user,
       token,
+      hex_id,
     });
   } catch (err) {
     console.error("Register error:", err);
@@ -67,16 +68,17 @@ async function register(req, res) {
 }
 // LOGIN FUNCTION
 async function login(req, res) {
-  const { email, password } = req.body;
+  const { hex_id, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: "email and password are required." });
+  if (!hex_id || !password) {
+    return res.status(400).json({ error: "hex_id and password are required." });
   }
 
   try {
-    const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
+    const { rows } = await pool.query("SELECT * FROM users WHERE hex_id = $1", [
+      hex_id,
     ]);
+
     const user = rows[0];
 
     if (!user) {
@@ -157,5 +159,37 @@ async function deleteAccount(req, res) {
     });
   }
 }
+//get hex id function
+async function getHexId(req, res) {
+  const { email } = req.body;
 
-module.exports = { register, login, updateProfileImage, deleteAccount };
+  if (!email) {
+    return res.status(400).json({ error: "Email is required." });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      "SELECT hex_id FROM users WHERE email = $1",
+      [email],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    return res.status(200).json({
+      hex_id: rows[0].hex_id,
+    });
+  } catch (err) {
+    console.error("Fetch hex id error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+}
+
+module.exports = {
+  register,
+  login,
+  updateProfileImage,
+  deleteAccount,
+  getHexId,
+};

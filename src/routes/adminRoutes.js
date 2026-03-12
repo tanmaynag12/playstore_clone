@@ -5,6 +5,7 @@ const {
   createApp,
   deleteApp,
   updateApp,
+  getAppLogs,
 } = require("../controllers/adminController");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
 
@@ -32,5 +33,7 @@ router.put(
 );
 
 router.delete("/apps/:id", authenticate, authorize("admin"), deleteApp);
+
+router.get("/app-logs", authenticate, authorize("admin"), getAppLogs);
 
 module.exports = router;

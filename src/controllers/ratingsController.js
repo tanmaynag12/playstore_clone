@@ -118,7 +118,7 @@ const getAppRatings = async (req, res) => {
       SELECT
         r.id,
         u.id         AS user_id,
-        u.name       AS user_name,
+        CONCAT(u.first_name, ' ', u.last_name) AS user_name,
         u.profile_image AS user_profile_image,
         r.rating,
         r.review_text,
