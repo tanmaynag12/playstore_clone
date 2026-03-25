@@ -6,6 +6,7 @@ const {
   getAllApps,
   getAppById,
   getMyApps,
+  getUserActivity,
 } = require("../controllers/appController");
 
 const { authenticate, optionalAuth } = require("../middleware/authMiddleware");
@@ -17,14 +18,14 @@ const downloadLimiter = rateLimit({
   max: 3,
   message: { error: "Too many download attempts. Try again later." },
 });
-
+router.get("/user/activity", getUserActivity);
 const ratingsRoutes = require("./ratingsRoutes");
 
 router.get("/", getAllApps);
 
 router.get("/my-apps", authenticate, getMyApps);
 
-router.get("/:id/download", downloadLimiter, optionalAuth, downloadApp);
+router.get("/:id/download", downloadLimiter, authenticate, downloadApp);
 
 router.get("/:id", getAppById);
 

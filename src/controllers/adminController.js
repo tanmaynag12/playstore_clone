@@ -119,6 +119,8 @@ exports.updateApp = async (req, res) => {
     const screenshots = req.files?.screenshots || [];
     const apk = req.files?.apk?.[0];
 
+    const isApkUploaded = !!apk;
+
     const existing = await db.query("SELECT * FROM apps WHERE id = $1", [id]);
 
     if (existing.rows.length === 0) {
@@ -135,6 +137,11 @@ exports.updateApp = async (req, res) => {
       apkUrl = `/uploads/apks/${apk.filename}`;
     }
 
+    let newVersionCode = existing.rows[0].version_code;
+    if (isApkUploaded) {
+      newVersionCode = newVersionCode + 1;
+    }
+
     const updated = await db.query(
       `UPDATE apps
        SET name = COALESCE($1, name),
@@ -146,7 +153,7 @@ exports.updateApp = async (req, res) => {
            rated_for = COALESCE($7, rated_for),
            apk_url = $8,
            package_name = COALESCE($9, package_name),
-           version_code = COALESCE($10, version_code)
+           version_code = $10
        WHERE id = $11
        RETURNING *`,
       [
@@ -159,17 +166,19 @@ exports.updateApp = async (req, res) => {
         rated_for,
         apkUrl,
         package_name,
-        version_code,
+        newVersionCode,
         id,
       ],
     );
 
     const updatedApp = updated.rows[0];
 
+    const actionType = isApkUploaded ? "apk_updated" : "metadata_updated";
+
     await db.query(
       `INSERT INTO app_logs (app_id, user_id, action, version)
        VALUES ($1,$2,$3,$4)`,
-      [id, req.user?.id || null, "updated", updatedApp.version],
+      [id, req.user?.id || null, actionType, updatedApp.version],
     );
 
     if (screenshots.length > 0) {
@@ -197,6 +206,7 @@ exports.updateApp = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 exports.getAppLogs = async (req, res) => {
   try {
     const result = await db.query(`

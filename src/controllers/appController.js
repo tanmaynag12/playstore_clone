@@ -4,29 +4,35 @@ exports.getAllApps = async (req, res) => {
   try {
     const { search } = req.query;
 
-    let query = `
-      SELECT 
-        a.*,
-        ROUND(AVG(r.rating)::NUMERIC, 2) AS average_rating,
-        COUNT(r.id)::INTEGER             AS total_reviews
-      FROM apps a
-      LEFT JOIN ratings r ON r.app_id = a.id
-    `;
+    const userId = req.user?.id || null;
 
-    let values = [];
+    let query = `
+  SELECT 
+    a.*,
+    user_apps.installed_version_code,
+    ROUND(AVG(r.rating)::NUMERIC, 2) AS average_rating,
+    COUNT(r.id)::INTEGER             AS total_reviews
+  FROM apps a
+  LEFT JOIN ratings r ON r.app_id = a.id
+  LEFT JOIN user_apps 
+    ON user_apps.app_id = a.id 
+    AND user_apps.user_id = $1
+`;
+
+    let values = [userId];
 
     if (search) {
       query += `
-        WHERE a.name ILIKE $1
-        OR a.developer ILIKE $1
-      `;
+    WHERE a.name ILIKE $2
+    OR a.developer ILIKE $2
+  `;
       values.push(`%${search}%`);
     }
 
     query += `
-      GROUP BY a.id
-      ORDER BY a.id DESC
-    `;
+  GROUP BY a.id, user_apps.installed_version_code
+  ORDER BY a.id DESC
+`;
 
     const result = await db.query(query, values);
 
@@ -101,41 +107,39 @@ exports.downloadApp = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await db.query("SELECT apk_url FROM apps WHERE id = $1", [
-      id,
-    ]);
+    const result = await db.query(
+      "SELECT apk_url, version_code FROM apps WHERE id = $1",
+      [id],
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "App not found" });
     }
 
-    const apkUrl = result.rows[0].apk_url;
+    const { apk_url, version_code } = result.rows[0];
 
-    if (!apkUrl) {
+    if (!apk_url) {
       return res.status(404).json({ error: "APK not available" });
     }
 
-    // increase download count
     await db.query(
       "UPDATE apps SET download_count = download_count + 1 WHERE id = $1",
       [id],
     );
 
-    // save installed app if user logged in
     if (req.user) {
       await db.query(
-        `
-        INSERT INTO user_apps (user_id, app_id)
-        VALUES ($1,$2)
-        ON CONFLICT (user_id, app_id) DO NOTHING
-        `,
-        [req.user.id, id],
+        `INSERT INTO user_apps (user_id, app_id, installed_version_code)
+         VALUES ($1,$2,$3)
+         ON CONFLICT (user_id, app_id)
+         DO UPDATE SET installed_version_code = $3`,
+        [req.user.id, id, version_code],
       );
     }
 
-    const filePath = path.join(__dirname, "../../", apkUrl);
-
-    res.download(filePath);
+    return res.json({
+      download_url: `${process.env.BASE_URL}${apk_url}`,
+    });
   } catch (err) {
     console.error("DOWNLOAD ERROR:", err);
     res.status(500).json({ error: "Download failed" });
@@ -162,4 +166,25 @@ async function getMyApps(req, res) {
     res.status(500).json({ error: "Server error" });
   }
 }
+exports.getUserActivity = async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        apps.name AS app_name,
+        app_logs.action,
+        app_logs.version,
+        app_logs.created_at
+      FROM app_logs
+      JOIN apps ON apps.id = app_logs.app_id
+      WHERE app_logs.action IN ('apk_updated', 'uploaded')
+      ORDER BY app_logs.created_at DESC
+      LIMIT 20
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("USER ACTIVITY ERROR:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
 exports.getMyApps = getMyApps;
